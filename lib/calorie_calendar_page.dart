@@ -7,7 +7,10 @@ class CalorieCalendarPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: CalendarView(title: 'Calorie Calendar'),
+      body: CalendarView(
+        title: 'Calorie Calendar',
+        canAddCalories: true,   // <-- to dodajemy
+      ),
     );
   }
 }

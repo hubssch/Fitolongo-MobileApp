@@ -7,7 +7,9 @@ class TrainingCalendarPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: CalendarView(title: 'Training Calendar'),
+      body: CalendarView(
+        title: 'Training Calendar',
+      ),
     );
   }
 }

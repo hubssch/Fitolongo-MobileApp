@@ -1,27 +1,36 @@
 import 'package:flutter/material.dart';
+import 'calories_service.dart';
 
-class CalendarView extends StatelessWidget {
+class CalendarView extends StatefulWidget {
   final String title;
+  final bool canAddCalories; // <-- NEW
 
-  const CalendarView({super.key, required this.title});
+  const CalendarView({
+    super.key,
+    required this.title,
+    this.canAddCalories = false, // default false (np. dla treningów)
+  });
+
+  @override
+  State<CalendarView> createState() => _CalendarViewState();
+}
+
+class _CalendarViewState extends State<CalendarView> {
+  final CaloriesService _service = CaloriesService();
+
+  DateTime currentDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'ComicSans',
-          ),
-        ),
+        title: Text(widget.title, style: const TextStyle(fontFamily: 'ComicSans')),
         backgroundColor: Colors.green[800],
         foregroundColor: Colors.white,
       ),
       backgroundColor: Colors.grey[400],
       body: Column(
         children: [
-          // Główna zawartość kalendarza
           Expanded(
             child: Center(
               child: Container(
@@ -34,12 +43,39 @@ class CalendarView extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'July',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontFamily: 'ComicSans',
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () {
+                            setState(() {
+                              currentDate = DateTime(
+                                currentDate.year,
+                                currentDate.month - 1,
+                              );
+                            });
+                          },
+                        ),
+                        Text(
+                          "${_monthName(currentDate.month)} ${currentDate.year}",
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontFamily: 'ComicSans',
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () {
+                            setState(() {
+                              currentDate = DateTime(
+                                currentDate.year,
+                                currentDate.month + 1,
+                              );
+                            });
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     _buildWeekDays(),
@@ -50,8 +86,6 @@ class CalendarView extends StatelessWidget {
               ),
             ),
           ),
-
-          // Stopka
           Container(
             padding: const EdgeInsets.all(12),
             color: Colors.green[800],
@@ -59,11 +93,7 @@ class CalendarView extends StatelessWidget {
             child: const Center(
               child: Text(
                 'Stay fit for a long time',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white,
-                  fontFamily: 'ComicSans',
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.white),
               ),
             ),
           ),
@@ -72,34 +102,72 @@ class CalendarView extends StatelessWidget {
     );
   }
 
+  String _monthName(int month) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1];
+  }
+
   Widget _buildWeekDays() {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: days
-          .map((d) => Text(
-        d,
-        style: const TextStyle(fontFamily: 'ComicSans'),
-      ))
-          .toList(),
+      children: days.map((d) => Text(d)).toList(),
     );
   }
 
   Widget _buildCalendarGrid() {
-    const daysInMonth = 31;
-    List<Widget> dayWidgets = [];
-
-    for (int i = 1; i <= daysInMonth; i++) {
-      dayWidgets.add(Text(
-        i.toString(),
-        style: const TextStyle(fontFamily: 'ComicSans'),
-      ));
-    }
+    final totalDays = DateTime(currentDate.year, currentDate.month + 1, 0).day;
 
     return Wrap(
       spacing: 20,
       runSpacing: 20,
-      children: dayWidgets,
+      children: List.generate(totalDays, (index) {
+        final day = index + 1;
+
+        return GestureDetector(
+          onTap: widget.canAddCalories ? () => _showAddCaloriesDialog(day) : null,
+          child: Text(
+            day.toString(),
+            style: const TextStyle(fontFamily: 'ComicSans'),
+          ),
+        );
+      }),
+    );
+  }
+
+  void _showAddCaloriesDialog(int day) {
+    final TextEditingController controller = TextEditingController();
+    final selected = DateTime(currentDate.year, currentDate.month, day);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add calories for $day'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Calories'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final int kcal = int.parse(controller.text);
+                await _service.addCalories(kcal, selected);
+                Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
