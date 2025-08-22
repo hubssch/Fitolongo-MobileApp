@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'training_calendar_page.dart';
 import 'calorie_calendar_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final supabase = Supabase.instance.client;
+
+  @override
   Widget build(BuildContext context) {
+    final user = supabase.auth.currentUser;
+
     return Scaffold(
       backgroundColor: Colors.grey[400],
       body: Column(
@@ -28,23 +38,50 @@ class HomePage extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.black,
+                    if (user == null) ...[
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/login').then((_) {
+                            setState(() {});
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Login'),
                       ),
-                      child: const Text('Login'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.black,
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/register').then((_) {
+                            setState(() {});
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Register'),
                       ),
-                      child: const Text('Register'),
-                    ),
+                    ] else ...[
+                      Text(
+                        'Hello, ${user.email}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await supabase.auth.signOut();
+                          setState(() {});
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[300],
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Logout'),
+                      ),
+                    ],
                   ],
                 )
               ],
