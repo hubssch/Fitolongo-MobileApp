@@ -176,36 +176,46 @@ class _CalendarViewState extends State<CalendarView> {
         final day = index + 1;
         final date = DateTime(currentDate.year, currentDate.month, day);
 
-        return FutureBuilder<List<Map<String, dynamic>>>(
-          future: _service.getEntriesForDate(date),
-          builder: (context, snapshot) {
-            final entries = snapshot.data ?? [];
-            final total = entries.fold<int>(0, (sum, e) => sum + (e['kcal_amount'] as int));
+        return FutureBuilder<bool>(
+          future: _service.isGoalAchieved(date),
+          builder: (context, goalSnapshot) {
+            return FutureBuilder<List<Map<String, dynamic>>>(
+              future: _service.getEntriesForDate(date),
+              builder: (context, entriesSnapshot) {
+                final entries = entriesSnapshot.data ?? [];
+                final total = entries.fold<int>(0, (sum, e) => sum + (e['kcal_amount'] as int));
 
-            return GestureDetector(
-              onTap: widget.canAddCalories
-                  ? () => _showDayDetailsDialog(date, entries)
-                  : null,
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: total > 0 ? Colors.green[300] : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  total > 0 ? "$day\n$total" : "$day",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, fontFamily: 'ComicSans'),
-                ),
-              ),
+                final achieved = goalSnapshot.data ?? false;
+
+                return GestureDetector(
+                  onTap: widget.canAddCalories
+                      ? () => _showDayDetailsDialog(date, entries)
+                      : null,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: achieved
+                          ? Colors.green[400] // ✅ cel osiągnięty
+                          : Colors.transparent, // ✅ tylko wartości bez tła
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      total > 0 ? "$day\n$total" : "$day",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 11, fontFamily: 'ComicSans'),
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
       }),
     );
   }
+
 
   void _showAddCaloriesDialog(int day) {
     final TextEditingController controller = TextEditingController();
