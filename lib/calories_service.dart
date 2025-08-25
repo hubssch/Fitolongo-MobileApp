@@ -16,23 +16,26 @@ class CaloriesService {
     });
   }
 
-  // Pobranie kalorii dla konkretnego dnia
-  Future<int> getCaloriesForDate(DateTime date) async {
+  // Pobranie wszystkich wpisów dla konkretnego dnia
+  Future<List<Map<String, dynamic>>> getEntriesForDate(DateTime date) async {
     final user = supabase.auth.currentUser;
-    if (user == null) return 0;
+    if (user == null) return [];
 
     final response = await supabase
         .from('Calories')
-        .select('kcal_amount')
+        .select('id, kcal_amount')
         .eq('user_id', user.id)
         .eq('date', date.toIso8601String().split('T').first);
 
-    if (response.isEmpty) return 0;
+    return List<Map<String, dynamic>>.from(response);
+  }
 
-    return response.fold<int>(
-      0,
-          (sum, row) => sum + (row['kcal_amount'] as int),
-    );
+  // Usuwanie konkretnego wpisu
+  Future<void> deleteEntry(int id) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    await supabase.from('Calories').delete().eq('id', id).eq('user_id', user.id);
   }
 
   // Ustawienie celu (w tabeli UserSettings)
@@ -63,7 +66,8 @@ class CaloriesService {
 
   // Sprawdzenie czy cel osiągnięty
   Future<bool> isGoalAchieved(DateTime date) async {
-    final total = await getCaloriesForDate(date);
+    final entries = await getEntriesForDate(date);
+    final total = entries.fold<int>(0, (sum, e) => sum + (e['kcal_amount'] as int));
     final goal = await getDailyGoal() ?? 0;
     return total >= goal && goal > 0;
   }

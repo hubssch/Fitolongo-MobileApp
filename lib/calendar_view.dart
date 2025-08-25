@@ -35,9 +35,8 @@ class _CalendarViewState extends State<CalendarView> {
               IconButton(
                 icon: const Icon(Icons.flag),
                 tooltip: 'Set Daily Goal',
-                onPressed: () => _showSetGoalDialog(), // ważne: wywołanie
+                onPressed: () => _showSetGoalDialog(),
               ),
-            // Pokaż kto jest zalogowany
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Center(
@@ -171,34 +170,38 @@ class _CalendarViewState extends State<CalendarView> {
     final totalDays = DateTime(currentDate.year, currentDate.month + 1, 0).day;
 
     return Wrap(
-      spacing: 20,
-      runSpacing: 20,
+      spacing: 12,
+      runSpacing: 12,
       children: List.generate(totalDays, (index) {
         final day = index + 1;
         final date = DateTime(currentDate.year, currentDate.month, day);
 
-        return GestureDetector(
-          onTap: widget.canAddCalories ? () => _showAddCaloriesDialog(day) : null,
-          child: FutureBuilder<bool>(
-            future: _service.isGoalAchieved(date),
-            builder: (context, snapshot) {
-              final achieved = snapshot.data ?? false;
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _service.getEntriesForDate(date),
+          builder: (context, snapshot) {
+            final entries = snapshot.data ?? [];
+            final total = entries.fold<int>(0, (sum, e) => sum + (e['kcal_amount'] as int));
 
-              return Container(
-                width: 36,
-                height: 36,
+            return GestureDetector(
+              onTap: widget.canAddCalories
+                  ? () => _showDayDetailsDialog(date, entries)
+                  : null,
+              child: Container(
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: achieved ? Colors.green : Colors.transparent,
+                  color: total > 0 ? Colors.green[300] : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  day.toString(),
-                  style: const TextStyle(fontFamily: 'ComicSans'),
+                  total > 0 ? "$day\n$total" : "$day",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, fontFamily: 'ComicSans'),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       }),
     );
@@ -246,14 +249,55 @@ class _CalendarViewState extends State<CalendarView> {
     );
   }
 
+  void _showDayDetailsDialog(DateTime date, List<Map<String, dynamic>> entries) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text("Entries for ${date.day}.${date.month}"),
+          content: entries.isEmpty
+              ? const Text("No entries yet.")
+              : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: entries.map((e) {
+              return ListTile(
+                title: Text("${e['kcal_amount']} kcal"),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () async {
+                    await _service.deleteEntry(e['id']);
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      setState(() {}); // odśwież kalendarz
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showAddCaloriesDialog(date.day);
+              },
+              child: const Text("Add calories"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Close"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _showSetGoalDialog() async {
-    // Pobierz aktualny goal, ale nie blokuj wyświetlenia dialogu jeśli coś się wysypie
     int? currentGoal;
     try {
       currentGoal = await _service.getDailyGoal();
-    } catch (_) {
-      // ignorujemy – pokażemy puste pole
-    }
+    } catch (_) {}
 
     final controller = TextEditingController(text: currentGoal?.toString() ?? '');
 
@@ -285,7 +329,7 @@ class _CalendarViewState extends State<CalendarView> {
 
     if (kcal != null) {
       await _service.setDailyGoal(kcal);
-      if (mounted) setState(() {}); // odśwież widok po zapisaniu celu
+      if (mounted) setState(() {});
     }
   }
 }
