@@ -126,10 +126,18 @@ class _CalendarViewState extends State<CalendarView> {
               ),
             ),
           ),
-          FutureBuilder<int?>(
-            future: _service.getDailyGoal(),
+          FutureBuilder<Map<String, dynamic>?>(
+            future: _service.getDailyGoalWithType(),
             builder: (context, snapshot) {
-              final goal = snapshot.data;
+              final data = snapshot.data;
+              final goal = data?['daily_goal'] as int?;
+              final type = (data?['goal_type'] as String?) ?? 'greater';
+
+              String typeText = '';
+              if (goal != null) {
+                typeText = type == 'less' ? '≤' : '≥';
+              }
+
               return Container(
                 padding: const EdgeInsets.all(12),
                 color: Colors.green[800],
@@ -137,7 +145,7 @@ class _CalendarViewState extends State<CalendarView> {
                 child: Center(
                   child: Text(
                     goal != null
-                        ? 'Your daily goal: $goal kcal'
+                        ? 'Your daily goal: $typeText $goal kcal'
                         : 'No daily goal set',
                     style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
@@ -183,7 +191,8 @@ class _CalendarViewState extends State<CalendarView> {
               future: _service.getEntriesForDate(date),
               builder: (context, entriesSnapshot) {
                 final entries = entriesSnapshot.data ?? [];
-                final total = entries.fold<int>(0, (sum, e) => sum + (e['kcal_amount'] as int));
+                final total = entries.fold<int>(
+                    0, (sum, e) => sum + (e['kcal_amount'] as int));
 
                 final achieved = goalSnapshot.data ?? false;
 
@@ -195,16 +204,15 @@ class _CalendarViewState extends State<CalendarView> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: achieved
-                          ? Colors.green[400] // ✅ cel osiągnięty
-                          : Colors.transparent, // ✅ tylko wartości bez tła
+                      color: achieved ? Colors.green[400] : Colors.transparent,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       total > 0 ? "$day\n$total" : "$day",
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 11, fontFamily: 'ComicSans'),
+                      style: const TextStyle(
+                          fontSize: 11, fontFamily: 'ComicSans'),
                     ),
                   ),
                 );
@@ -215,7 +223,6 @@ class _CalendarViewState extends State<CalendarView> {
       }),
     );
   }
-
 
   void _showAddCaloriesDialog(int day) {
     final TextEditingController controller = TextEditingController();
@@ -248,7 +255,7 @@ class _CalendarViewState extends State<CalendarView> {
                 await _service.addCalories(kcal, selected);
                 if (mounted) {
                   Navigator.pop(context);
-                  setState(() {}); // odśwież kalendarz
+                  setState(() {});
                 }
               },
               child: const Text('Save'),
@@ -259,7 +266,8 @@ class _CalendarViewState extends State<CalendarView> {
     );
   }
 
-  void _showDayDetailsDialog(DateTime date, List<Map<String, dynamic>> entries) {
+  void _showDayDetailsDialog(
+      DateTime date, List<Map<String, dynamic>> entries) {
     showDialog(
       context: context,
       builder: (ctx) {
@@ -278,7 +286,7 @@ class _CalendarViewState extends State<CalendarView> {
                     await _service.deleteEntry(e['id']);
                     if (mounted) {
                       Navigator.pop(ctx);
-                      setState(() {}); // odśwież kalendarz
+                      setState(() {});
                     }
                   },
                 ),
@@ -304,23 +312,52 @@ class _CalendarViewState extends State<CalendarView> {
   }
 
   Future<void> _showSetGoalDialog() async {
-    int? currentGoal;
+    Map<String, dynamic>? currentGoalData;
     try {
-      currentGoal = await _service.getDailyGoal();
+      currentGoalData = await _service.getDailyGoalWithType();
     } catch (_) {}
 
-    final controller = TextEditingController(text: currentGoal?.toString() ?? '');
+    final controller = TextEditingController(
+      text: currentGoalData?['daily_goal']?.toString() ?? '',
+    );
+    String goalType = (currentGoalData?['goal_type'] as String?) ?? 'greater';
 
-    final kcal = await showDialog<int>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Set Daily Goal'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: 'Enter daily kcal goal',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                hintText: 'Enter daily kcal goal',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButton<String>(
+              value: goalType,
+              items: const [
+                DropdownMenuItem(
+                  value: 'greater',
+                  child: Text("Reach at least (≥)"),
+                ),
+                DropdownMenuItem(
+                  value: 'less',
+                  child: Text("Stay below (≤)"),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    goalType = val;
+                  });
+                }
+              },
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -329,7 +366,15 @@ class _CalendarViewState extends State<CalendarView> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(ctx, int.tryParse(controller.text));
+              final kcal = int.tryParse(controller.text);
+              if (kcal != null) {
+                Navigator.pop(ctx, {
+                  'daily_goal': kcal,
+                  'goal_type': goalType,
+                });
+              } else {
+                Navigator.pop(ctx);
+              }
             },
             child: const Text('Save'),
           ),
@@ -337,8 +382,11 @@ class _CalendarViewState extends State<CalendarView> {
       ),
     );
 
-    if (kcal != null) {
-      await _service.setDailyGoal(kcal);
+    if (result != null) {
+      await _service.setDailyGoalWithType(
+        result['daily_goal'] as int,
+        result['goal_type'] as String,
+      );
       if (mounted) setState(() {});
     }
   }
